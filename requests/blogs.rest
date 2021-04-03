@@ -1,0 +1,29 @@
+GET http://localhost:3000/api/blogs/
+
+###
+GET http://localhost:3000/api/blogs/id/
+
+###
+POST http://localhost:3000/api/blogs/ HTTP/1.1
+content-type: application/json
+
+{
+  "title": "title",
+  "author": "author",
+  "url": "url",
+  "likes": 0
+}
+
+###
+PUT http://localhost:3000/api/blogs/id/ HTTP/1.1
+content-type: application/json
+
+{
+  "title": "title",
+  "author": "author",
+  "url": "url",
+  "likes": 0
+}
+
+###
+DELETE http://localhost:3000/api/blogs/id/
