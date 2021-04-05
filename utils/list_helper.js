@@ -32,9 +32,29 @@ const mostBlogs = blogs => {
   };
 };
 
+const mostLikes = blogs => {
+  const authors = _.uniq(blogs.map(blog => blog.author));
+  const likesPerAuthor = authors.map(author => {
+    let likes = 0;
+    blogs.forEach(blog => {
+      if (blog.author === author) {
+        likes += blog.likes;
+      }
+    });
+    return {
+      author: author,
+      likes: likes
+    };
+  });
+  const authorWithMostLikes = _.maxBy(likesPerAuthor, o => o.likes);
+
+  return blogs.length === 0 ? null : authorWithMostLikes;
+};
+
 module.exports = {
   dummy,
   totalLikes,
   favoriteBlog,
-  mostBlogs
+  mostBlogs,
+  mostLikes
 };
