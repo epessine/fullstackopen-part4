@@ -70,87 +70,150 @@ beforeEach(async () => {
   }
 });
 
-test('blogs are returned as json and correct amount', async () => {
-  const res = await api.get('/api/blogs')
-    .expect(200)
-    .expect('Content-Type', /application\/json/);
+describe('retrieving blogs', () => {
+  test('blogs are returned as json and correct amount', async () => {
+    const res = await api.get('/api/blogs')
+      .expect(200)
+      .expect('Content-Type', /application\/json/);
+    
+    expect(res.body).toHaveLength(initialBlogs.length);
+  });
   
-  expect(res.body).toHaveLength(initialBlogs.length);
+  test('blogs unique identifier is named id', async () => {
+    const res = await api.get('/api/blogs');
+    
+    expect(res.body[0].id).toBeDefined();
+  });
 });
 
-test('blogs unique identifier is named id', async () => {
-  const res = await api.get('/api/blogs');
+describe('inserting blogs', () => {
+  test('valid blogs can be added', async () => {
+    const newBlog = {
+      title: 'test title',
+      author: 'test author',
+      url: 'test url',
+      likes: 0,
+    };
   
-  expect(res.body[0].id).toBeDefined();
-});
-
-test('valid blogs can be added', async () => {
-  const newBlog = {
-    title: 'test title',
-    author: 'test author',
-    url: 'test url',
-    likes: 0,
-  };
-
-  await api.post('/api/blogs')
-    .send(newBlog)
-    .expect(201)
-    .expect('Content-Type', /application\/json/);
-
-  const blogsAtEnd = await blogsInDb();
-  expect(blogsAtEnd).toHaveLength(initialBlogs.length + 1);
-
-  const titles = blogsAtEnd.map(b => b.title);
-  expect(titles).toContain(
-    'test title'
-  );
-});
-
-test('blogs without likes defaults likes to zero', async () => {
-  const newBlog = {
-    title: 'test title',
-    author: 'test author',
-    url: 'test url'
-  };
-
-  const res = await api.post('/api/blogs')
-    .send(newBlog)
-    .expect(201)
-    .expect('Content-Type', /application\/json/);
-
-  const blogsAtEnd = await blogsInDb();
-  expect(blogsAtEnd).toHaveLength(initialBlogs.length + 1);
-  expect(res.body.likes).toBe(0);
-});
-
-test('blogs without title are not saved', async () => {
-  const newBlog = {
-    author: 'test author',
-    url: 'test url'
-  };
-
-  await api.post('/api/blogs')
-    .send(newBlog)
-    .expect(400)
-    .expect('Content-Type', /application\/json/);
+    await api.post('/api/blogs')
+      .send(newBlog)
+      .expect(201)
+      .expect('Content-Type', /application\/json/);
   
-  const blogsAtEnd = await blogsInDb();
-  expect(blogsAtEnd).toHaveLength(initialBlogs.length);
+    const blogsAtEnd = await blogsInDb();
+    expect(blogsAtEnd).toHaveLength(initialBlogs.length + 1);
+  
+    const titles = blogsAtEnd.map(b => b.title);
+    expect(titles).toContain(
+      'test title'
+    );
+  });
+  
+  test('blogs without likes defaults likes to zero', async () => {
+    const newBlog = {
+      title: 'test title',
+      author: 'test author',
+      url: 'test url'
+    };
+  
+    const res = await api.post('/api/blogs')
+      .send(newBlog)
+      .expect(201)
+      .expect('Content-Type', /application\/json/);
+  
+    const blogsAtEnd = await blogsInDb();
+    expect(blogsAtEnd).toHaveLength(initialBlogs.length + 1);
+    expect(res.body.likes).toBe(0);
+  });
+  
+  test('blogs without title are not saved', async () => {
+    const newBlog = {
+      author: 'test author',
+      url: 'test url'
+    };
+  
+    await api.post('/api/blogs')
+      .send(newBlog)
+      .expect(400)
+      .expect('Content-Type', /application\/json/);
+    
+    const blogsAtEnd = await blogsInDb();
+    expect(blogsAtEnd).toHaveLength(initialBlogs.length);
+  });
+  
+  test('blogs without url are not saved', async () => {
+    const newBlog = {
+      title: 'test title',
+      author: 'test author',
+    };
+  
+    await api.post('/api/blogs')
+      .send(newBlog)
+      .expect(400)
+      .expect('Content-Type', /application\/json/);
+  
+    const blogsAtEnd = await blogsInDb();
+    expect(blogsAtEnd).toHaveLength(initialBlogs.length);
+  });
 });
 
-test('blogs without url are not saved', async () => {
-  const newBlog = {
-    title: 'test title',
-    author: 'test author',
-  };
+describe('deleting and updating blogs', () => {
+  test('blogs can be deleted', async () => {
+    const blogsAtStart = await blogsInDb();
+    const blogToDelete = blogsAtStart[0];
+  
+    await api.delete(`/api/blogs/${blogToDelete.id}`)    
+      .expect(204);
 
-  await api.post('/api/blogs')
-    .send(newBlog)
-    .expect(400)
-    .expect('Content-Type', /application\/json/);
+    const blogsAtEnd = await blogsInDb();
+    expect(blogsAtEnd).toHaveLength(
+      initialBlogs.length - 1
+    );
+  
+    const titles = blogsAtEnd.map(b => b.title);
+    expect(titles).not.toContain(blogToDelete.title);
+  });
 
-  const blogsAtEnd = await blogsInDb();
-  expect(blogsAtEnd).toHaveLength(initialBlogs.length);
+  test('blogs can be updated', async () => {
+    const blogsAtStart = await blogsInDb();
+    const blogToUpdate = {
+      ...blogsAtStart[0],
+      title: 'updated title test',
+      likes: 99
+    };
+  
+    await api.put(`/api/blogs/${blogToUpdate.id}`)
+      .send(blogToUpdate)  
+      .expect(200)
+      .expect('Content-Type', /application\/json/);
+
+    const blogsAtEnd = await blogsInDb();
+    expect(blogsAtEnd).toHaveLength(initialBlogs.length);
+  
+    const titles = blogsAtEnd.map(b => b.title);
+    expect(titles).toContain(blogToUpdate.title);
+  });
+
+  test('blogs with invalid data are not updated', async () => {
+    const blogsAtStart = await blogsInDb();
+    const blogToUpdate = {
+      ...blogsAtStart[0],
+      title: null,
+      url: null,
+      likes: null,
+    };
+  
+    await api.put(`/api/blogs/${blogToUpdate.id}`)
+      .send(blogToUpdate)  
+      .expect(400)
+      .expect('Content-Type', /application\/json/);
+
+    const blogsAtEnd = await blogsInDb();
+    expect(blogsAtEnd).toHaveLength(initialBlogs.length);
+  
+    const titles = blogsAtEnd.map(b => b.title);
+    expect(titles).toContain(blogsAtStart[0].title);
+  });
 });
 
 afterAll(() => {
