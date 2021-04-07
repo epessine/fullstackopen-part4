@@ -11,7 +11,8 @@ content-type: application/json
   "title": "title",
   "author": "author",
   "url": "url",
-  "likes": 0
+  "likes": 0,
+  "userId": "id"
 }
 
 ###

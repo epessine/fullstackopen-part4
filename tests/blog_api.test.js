@@ -1,9 +1,18 @@
 const mongoose = require('mongoose');
 const supertest = require('supertest');
 const app = require('../app');
-const Blog = require('../models/blog');
+const Blog = require('../models/Blog');
+const User = require('../models/User');
 
 const api = supertest(app);
+
+const initialUser = {
+  _id: '5a422bc61b54a676234d17f2',
+  username: 'test1',
+  name: 'Test 1',
+  password: 'testpassword',
+  __v: 0
+};
 
 const initialBlogs = [
   {
@@ -57,12 +66,16 @@ const initialBlogs = [
 ];
 
 const blogsInDb = async () => {
-  const blogs = await Blog.find({});
+  const blogs = await Blog.find({}).populate('user', { username: 1, name: 1 });
   return blogs.map(blog => blog.toJSON());
 };
 
 beforeEach(async () => {
   await Blog.deleteMany({});
+  await User.deleteMany({});
+
+  let userObject = new User(initialUser);
+  await userObject.save();
 
   for (let blog of initialBlogs) {
     let blogObject = new Blog(blog);
@@ -93,6 +106,7 @@ describe('inserting blogs', () => {
       author: 'test author',
       url: 'test url',
       likes: 0,
+      userId: initialUser._id
     };
   
     await api.post('/api/blogs')
@@ -104,16 +118,35 @@ describe('inserting blogs', () => {
     expect(blogsAtEnd).toHaveLength(initialBlogs.length + 1);
   
     const titles = blogsAtEnd.map(b => b.title);
-    expect(titles).toContain(
-      'test title'
-    );
+    expect(titles).toContain('test title');
+  });
+
+  test('blogs user are saved', async () => {
+    const newBlog = {
+      title: 'test title',
+      author: 'test author',
+      url: 'test url',
+      userId: initialUser._id
+    };
+  
+    await api.post('/api/blogs')
+      .send(newBlog)
+      .expect(201)
+      .expect('Content-Type', /application\/json/);
+  
+    const blogsAtEnd = await blogsInDb();
+    expect(blogsAtEnd).toHaveLength(initialBlogs.length + 1);
+
+    const users = blogsAtEnd.map(b => b.user ? b.user.name : undefined);
+    expect(users).toContain(initialUser.name);
   });
   
   test('blogs without likes defaults likes to zero', async () => {
     const newBlog = {
       title: 'test title',
       author: 'test author',
-      url: 'test url'
+      url: 'test url',
+      userId: initialUser._id
     };
   
     const res = await api.post('/api/blogs')

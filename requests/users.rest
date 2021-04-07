@@ -1,0 +1,27 @@
+GET http://localhost:3000/api/users/
+
+###
+GET http://localhost:3000/api/users/id/
+
+###
+POST http://localhost:3000/api/users/ HTTP/1.1
+content-type: application/json
+
+{
+  "username": "test1",
+  "name": "Test 1",
+  "password": "testpassword"
+}
+
+###
+PUT http://localhost:3000/api/users/id/ HTTP/1.1
+content-type: application/json
+
+{
+  "username": "test1",
+  "name": "Test 1",
+  "password": "testpassword"
+}
+
+###
+DELETE http://localhost:3000/api/users/id/
