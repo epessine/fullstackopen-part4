@@ -7,11 +7,36 @@ const User = require('../models/User');
 const api = supertest(app);
 
 const initialUser = {
-  _id: '5a422bc61b54a676234d17f2',
   username: 'test1',
   name: 'Test 1',
-  password: 'testpassword',
-  __v: 0
+  password: 'testpassword'
+};
+
+const fakeToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VybmFtZSI6InRlc3QxIiwiaWQiOiI2MDZkMWRmNDU5NjdmYzNmZjQwZThjMGEiLCJpYXQiOjE2MTc4NDk4ODV9.Aa6546AsLhKXjUkqQn3seC5C86LUuKKXwzi7w9h4hVw';
+let token = '';
+let initialUserId = '';
+
+const blogsInDb = async () => {
+  const blogs = await Blog.find({}).populate('user', { username: 1, name: 1 });
+  return blogs.map(blog => blog.toJSON());
+};
+
+const auth = async () => {
+  await User.deleteMany({});
+  const savedUser = await api.post('/api/users')
+    .send({
+      username: initialUser.username,
+      name: initialUser.name,
+      password: initialUser.password
+    });
+  initialUserId = savedUser.body.id;
+
+  const response = await api.post('/api/login')
+    .send({
+      username: initialUser.username,
+      password: initialUser.password
+    });
+  token = response.body.token;
 };
 
 const initialBlogs = [
@@ -65,20 +90,15 @@ const initialBlogs = [
   }  
 ];
 
-const blogsInDb = async () => {
-  const blogs = await Blog.find({}).populate('user', { username: 1, name: 1 });
-  return blogs.map(blog => blog.toJSON());
-};
-
 beforeEach(async () => {
   await Blog.deleteMany({});
-  await User.deleteMany({});
-
-  let userObject = new User(initialUser);
-  await userObject.save();
+  await auth();
 
   for (let blog of initialBlogs) {
-    let blogObject = new Blog(blog);
+    let blogObject = new Blog({
+      ...blog,
+      user: initialUserId
+    });
     await blogObject.save();
   }
 });
@@ -88,7 +108,7 @@ describe('retrieving blogs', () => {
     const res = await api.get('/api/blogs')
       .expect(200)
       .expect('Content-Type', /application\/json/);
-    
+      
     expect(res.body).toHaveLength(initialBlogs.length);
   });
   
@@ -105,11 +125,11 @@ describe('inserting blogs', () => {
       title: 'test title',
       author: 'test author',
       url: 'test url',
-      likes: 0,
-      userId: initialUser._id
+      likes: 0
     };
   
     await api.post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
       .send(newBlog)
       .expect(201)
       .expect('Content-Type', /application\/json/);
@@ -125,11 +145,11 @@ describe('inserting blogs', () => {
     const newBlog = {
       title: 'test title',
       author: 'test author',
-      url: 'test url',
-      userId: initialUser._id
+      url: 'test url'
     };
   
     await api.post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
       .send(newBlog)
       .expect(201)
       .expect('Content-Type', /application\/json/);
@@ -137,7 +157,7 @@ describe('inserting blogs', () => {
     const blogsAtEnd = await blogsInDb();
     expect(blogsAtEnd).toHaveLength(initialBlogs.length + 1);
 
-    const users = blogsAtEnd.map(b => b.user ? b.user.name : undefined);
+    const users = blogsAtEnd.map(b => b.user.name);
     expect(users).toContain(initialUser.name);
   });
   
@@ -145,11 +165,11 @@ describe('inserting blogs', () => {
     const newBlog = {
       title: 'test title',
       author: 'test author',
-      url: 'test url',
-      userId: initialUser._id
+      url: 'test url'
     };
   
     const res = await api.post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
       .send(newBlog)
       .expect(201)
       .expect('Content-Type', /application\/json/);
@@ -166,6 +186,7 @@ describe('inserting blogs', () => {
     };
   
     await api.post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
       .send(newBlog)
       .expect(400)
       .expect('Content-Type', /application\/json/);
@@ -181,6 +202,7 @@ describe('inserting blogs', () => {
     };
   
     await api.post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
       .send(newBlog)
       .expect(400)
       .expect('Content-Type', /application\/json/);
@@ -195,7 +217,8 @@ describe('deleting and updating blogs', () => {
     const blogsAtStart = await blogsInDb();
     const blogToDelete = blogsAtStart[0];
   
-    await api.delete(`/api/blogs/${blogToDelete.id}`)    
+    await api.delete(`/api/blogs/${blogToDelete.id}`)
+      .set('Authorization', `Bearer ${token}`)    
       .expect(204);
 
     const blogsAtEnd = await blogsInDb();
@@ -207,6 +230,21 @@ describe('deleting and updating blogs', () => {
     expect(titles).not.toContain(blogToDelete.title);
   });
 
+  test('blogs cant be deleted by wrong user', async () => {
+    const blogsAtStart = await blogsInDb();
+    const blogToDelete = blogsAtStart[0];
+  
+    await api.delete(`/api/blogs/${blogToDelete.id}`)
+      .set('Authorization', `Bearer ${fakeToken}`)    
+      .expect(401);
+
+    const blogsAtEnd = await blogsInDb();
+    expect(blogsAtEnd).toHaveLength(initialBlogs.length);
+  
+    const titles = blogsAtEnd.map(b => b.title);
+    expect(titles).toContain(blogToDelete.title);
+  });
+
   test('blogs can be updated', async () => {
     const blogsAtStart = await blogsInDb();
     const blogToUpdate = {
@@ -216,6 +254,7 @@ describe('deleting and updating blogs', () => {
     };
   
     await api.put(`/api/blogs/${blogToUpdate.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .send(blogToUpdate)  
       .expect(200)
       .expect('Content-Type', /application\/json/);
@@ -227,16 +266,38 @@ describe('deleting and updating blogs', () => {
     expect(titles).toContain(blogToUpdate.title);
   });
 
+  test('blogs cant be updated by wrong user', async () => {
+    const blogsAtStart = await blogsInDb();
+    const blogToUpdate = {
+      ...blogsAtStart[0],
+      title: 'updated title test',
+      likes: 99
+    };
+  
+    await api.put(`/api/blogs/${blogToUpdate.id}`)
+      .set('Authorization', `Bearer ${fakeToken}`)
+      .send(blogToUpdate)  
+      .expect(401)
+      .expect('Content-Type', /application\/json/);
+
+    const blogsAtEnd = await blogsInDb();
+    expect(blogsAtEnd).toHaveLength(initialBlogs.length);
+  
+    const titles = blogsAtEnd.map(b => b.title);
+    expect(titles).toContain(blogsAtStart[0].title);
+  });
+
   test('blogs with invalid data are not updated', async () => {
     const blogsAtStart = await blogsInDb();
     const blogToUpdate = {
       ...blogsAtStart[0],
-      title: null,
-      url: null,
-      likes: null,
+      title: 1,
+      url: 1,
+      likes: 'string',
     };
   
     await api.put(`/api/blogs/${blogToUpdate.id}`)
+      .set('Authorization', `Bearer ${token}`)
       .send(blogToUpdate)  
       .expect(400)
       .expect('Content-Type', /application\/json/);
@@ -249,6 +310,6 @@ describe('deleting and updating blogs', () => {
   });
 });
 
-afterAll(() => {
+afterAll(async () => {
   mongoose.connection.close();
 });

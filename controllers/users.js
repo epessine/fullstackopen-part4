@@ -20,17 +20,13 @@ usersRouter.post('/', async (req, res) => {
   if (req.body.username.length < 3 || req.body.password.length < 3) {
     return res.status(400).json('error: username or password must be at least 3 characters long');
   }
-  const body = req.body;
 
-  const saltRounds = 10;
-  const passwordHash = await bcrypt.hash(body.password, saltRounds);
-
+  const passwordHash = await bcrypt.hash(req.body.password, 10);
   const user = new User({
-    username: body.username,
-    name: body.name,
+    username: req.body.username,
+    name: req.body.name,
     passwordHash,
   });
-
   const savedUser = await user.save();
 
   res.status(201).json(savedUser);
