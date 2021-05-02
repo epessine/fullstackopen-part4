@@ -33,6 +33,15 @@ blogsRouter.post('/', async (req, res) => {
   res.status(201).json(returnedBlog);
 });
 
+blogsRouter.get('/:id', async (req, res) => {
+  const blog = await Blog.findById(req.params.id)
+    .populate('user', { 
+      username: 1, 
+      name: 1 
+    });
+  res.status(200).json(blog);
+});
+
 blogsRouter.delete('/:id', async (req, res) => {
   const blog = await Blog.findById(req.params.id);
   if (!req.user || blog.user.toString() !== req.user.id.toString())
