@@ -69,11 +69,38 @@ blogsRouter.put('/:id', async (req, res) => {
     author: body.author || blog.author,
     url: body.url || blog.url,
     likes: body.likes || blog.likes,
+    comments: blog.comments
   };
 
   const returnedBlog = await Blog.findByIdAndUpdate(
     req.params.id, 
     updatedBlog, 
+    { new: true, runValidators: true }
+  );
+
+  res.status(200).json(returnedBlog);
+});
+
+blogsRouter.post('/:id/comments', async (req, res) => {
+  const blog = await Blog.findById(req.params.id);
+  const body = req.body;
+
+  if (!body)
+    return res.status(400)
+      .json('error: info missing');
+  
+  const blogWithComment = {
+    title: blog.title,
+    author: blog.author,
+    url: blog.url,
+    likes: blog.likes,
+    comments: blog.comments.concat(body.comment)
+  };
+  console.log(blogWithComment);
+
+  const returnedBlog = await Blog.findByIdAndUpdate(
+    req.params.id, 
+    blogWithComment, 
     { new: true, runValidators: true }
   );
 

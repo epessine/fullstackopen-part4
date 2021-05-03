@@ -30,3 +30,11 @@ Authorization: Bearer token
 ###
 DELETE http://localhost:3001/api/blogs/id/
 Authorization: Bearer token
+
+###
+POST http://localhost:3001/api/blogs/6071e684f2ca0e38f07179c0/comments/ HTTP/1.1
+content-type: application/json
+
+{
+  "comment": "wadwadw"
+}
